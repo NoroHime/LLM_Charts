@@ -1,0 +1,13 @@
+{
+  "source": "https://artificialanalysis.ai/leaderboards/models",
+  "fetchedAt": "2026-10-30T19:30:12.267Z",
+  "generatedAt": "2026-10-30T19:30:21.304Z",
+  "fromCache": true,
+  "totalModelsOnSite": 289,
+  "plottedModels": 81,
+  "metrics": {
+    "x": "intelligenceIndexCostPerTask（每任务成本，USD）",
+    "y": "intelligenceIndex（AA 智能指数）"
+  },
+  "note": "仅为同时具备两项指标的模型；成本为 0 的免费模型在对数轴上按 0.005 下限绘制。"
+}

@@ -1,0 +1,50 @@
+{
+  "name": "llm-charts",
+  "private": false,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "LLM 性价比图鉴：以「每任务成本 × AA 智能指数」双轴可视化 Artificial Analysis LLM Leaderboard",
+  "license": "MIT",
+  "author": "NoroHime",
+  "homepage": "https://NoroHime.github.io/LLM_Charts/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NoroHime/LLM_Charts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NoroHime/LLM_Charts/issues"
+  },
+  "keywords": [
+    "llm",
+    "leaderboard",
+    "artificial-analysis",
+    "echarts",
+    "visualization",
+    "react",
+    "vite"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "refresh": "node scripts/fetch-models.mjs",
+    "refresh:force": "node scripts/fetch-models.mjs --force",
+    "refresh:offline": "node scripts/fetch-models.mjs --offline",
+    "update": "node scripts/run.mjs"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.89.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  }
+}

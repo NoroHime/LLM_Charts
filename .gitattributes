@@ -1,0 +1,7 @@
+# 统一换行符，避免 Windows/macOS/Linux 混用导致 diff 噪音
+* text=auto eol=lf
+
+# 归档的页面快照是二进制性质的大文件，不做换行转换
+*.html -text
+*.png binary
+*.svg text eol=lf
