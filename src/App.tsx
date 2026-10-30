@@ -263,8 +263,16 @@ export default function App() {
 
         <div className="group">
           <span className="glabel">直显标签</span>
-          <input type="range" min={0} max={40} value={labelTop} onChange={(e) => setLabelTop(Number(e.target.value))} />
-          <span className="gval">{labelTop}</span>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(visible.length, 1)}
+            value={Math.min(labelTop, visible.length)}
+            onChange={(e) => setLabelTop(Number(e.target.value))}
+          />
+          <span className="gval">
+            {Math.min(labelTop, visible.length)}/{visible.length}
+          </span>
         </div>
 
         <div className="group grow">
