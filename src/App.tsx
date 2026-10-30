@@ -58,7 +58,8 @@ export default function App() {
   const [scale, setScale] = useState<ScaleMode>('log')
   const [hidden, setHidden] = useState<Set<string>>(() => new Set<string>())
   const [query, setQuery] = useState('')
-  const [labelTop, setLabelTop] = useState(14)
+  // 默认为最大值：全部入选模型都尝试直显标签，重叠的由 ECharts 自动隐藏
+  const [labelTop, setLabelTop] = useState(ROWS.length)
   const [showFrontier, setShowFrontier] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
 
