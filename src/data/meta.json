@@ -1,10 +1,10 @@
 {
   "source": "https://artificialanalysis.ai/leaderboards/models",
-  "fetchedAt": "2026-11-01T22:13:35.884Z",
-  "generatedAt": "2026-11-02T06:29:12.363Z",
-  "fromCache": true,
-  "totalModelsOnSite": 289,
-  "plottedModels": 81,
+  "fetchedAt": "2026-11-02T21:49:16.247Z",
+  "generatedAt": "2026-11-02T21:49:16.263Z",
+  "fromCache": false,
+  "totalModelsOnSite": 292,
+  "plottedModels": 84,
   "metrics": {
     "x": "intelligenceIndexCostPerTask（每任务成本，USD）",
     "y": "intelligenceIndex（AA 智能指数）"
