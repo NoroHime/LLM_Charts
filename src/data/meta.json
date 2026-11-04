@@ -1,8 +1,8 @@
 {
   "source": "https://artificialanalysis.ai/leaderboards/models",
   "fetchedAt": "2026-11-03T19:39:47.886Z",
-  "generatedAt": "2026-11-03T19:39:47.896Z",
-  "fromCache": false,
+  "generatedAt": "2026-11-04T06:44:22.688Z",
+  "fromCache": true,
   "totalModelsOnSite": 293,
   "plottedModels": 84,
   "metrics": {
