@@ -348,7 +348,7 @@
   "context": 1000000,
   "pIn": 2,
   "pOut": 10,
-  "openWeights": false,
+  "openWeights": true,
   "reasoning": true
  },
  {
@@ -460,6 +460,22 @@
   "context": 1000000,
   "pIn": 2,
   "pOut": 10,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
+  "slug": "muse-wonder-high",
+  "name": "Muse Wonder (High)",
+  "creator": "Meta",
+  "color": "#0089f4",
+  "intelligence": 40.53,
+  "costPerTask": 4.560546278670271,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1048576,
+  "pIn": 4,
+  "pOut": 20,
   "openWeights": false,
   "reasoning": true
  },
@@ -592,6 +608,22 @@
   "reasoning": true
  },
  {
+  "slug": "tencent-hy4",
+  "name": "Tencent Hy4",
+  "creator": "Tencent",
+  "color": "#5CB9FF",
+  "intelligence": 34.56,
+  "costPerTask": 1.0311060706397974,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1048576,
+  "pIn": 0.834,
+  "pOut": 2.501,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
   "slug": "qwen3-8-max",
   "name": "Qwen3.8 Max (0902)",
   "creator": "Alibaba",
@@ -684,6 +716,22 @@
   "context": 1000000,
   "pIn": 2,
   "pOut": 10,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
+  "slug": "inkling-2-small",
+  "name": "Inkling 2 Small",
+  "creator": "Thinking Machines",
+  "color": "#676767",
+  "intelligence": 30.63,
+  "costPerTask": 1.1784281349617984,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1024000,
+  "pIn": 0.3,
+  "pOut": 1,
   "openWeights": false,
   "reasoning": true
  },
@@ -885,7 +933,7 @@
   "creator": "Mistral",
   "color": "#f32e02",
   "intelligence": 26.12,
-  "costPerTask": 2.061496607384404,
+  "costPerTask": 2.0617306268126856,
   "outputTps": null,
   "ttft": null,
   "e2e": null,
@@ -965,7 +1013,7 @@
   "creator": "Mistral",
   "color": "#f32e02",
   "intelligence": 23.13,
-  "costPerTask": 1.4119376739255958,
+  "costPerTask": 1.4120973060945472,
   "outputTps": null,
   "ttft": null,
   "e2e": null,
@@ -1404,6 +1452,22 @@
   "context": 256000,
   "pIn": 0.15,
   "pOut": 0.6,
+  "openWeights": true,
+  "reasoning": true
+ },
+ {
+  "slug": "north-mini-code",
+  "name": "North Mini Code",
+  "creator": "Cohere",
+  "color": "#D18EE2",
+  "intelligence": 3.42,
+  "costPerTask": 0,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 256000,
+  "pIn": 0,
+  "pOut": 0,
   "openWeights": true,
   "reasoning": true
  }
