@@ -63,7 +63,28 @@ jobs:
           fi
 
       - name: Build site
-        run: npm run build
+        run: |
+          npm run build
+          touch dist/.nojekyll
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "ref: ${GITHUB_REF_NAME}"
+            echo "event: ${GITHUB_EVENT_NAME}"
+            echo "built_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > dist/BUILD_INFO.txt
+
+      # 把构建产物镜像到 gh-pages 分支：仓库里同时保留源码（main）与可直接托管的静态文件。
+      # 该分支始终是一个孤立的单提交，每次运行强制覆盖，不参与主线开发。
+      - name: Mirror static build to gh-pages
+        run: |
+          cd dist
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q --allow-empty -m "chore(static): build from ${GITHUB_SHA::7} [skip ci]"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
