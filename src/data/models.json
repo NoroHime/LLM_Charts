@@ -1264,6 +1264,22 @@
   "reasoning": true
  },
  {
+  "slug": "apodex-1-1",
+  "name": "Apodex 1.1",
+  "creator": "Apodex",
+  "color": "#0FD9D2",
+  "intelligence": 13.67,
+  "costPerTask": 0.764236100822604,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 256000,
+  "pIn": 0.3,
+  "pOut": 3,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
   "slug": "nemotron-3-5-super-vl",
   "name": "Nemotron 3.5 Super VL",
   "creator": "NVIDIA",
@@ -1445,7 +1461,7 @@
   "creator": "NVIDIA",
   "color": "#76b900",
   "intelligence": 5.53,
-  "costPerTask": 0.28980699398265014,
+  "costPerTask": 0.31445225066768195,
   "outputTps": null,
   "ttft": null,
   "e2e": null,
