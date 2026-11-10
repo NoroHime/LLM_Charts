@@ -1445,7 +1445,7 @@
   "creator": "NVIDIA",
   "color": "#76b900",
   "intelligence": 5.53,
-  "costPerTask": 0.28980699398265014,
+  "costPerTask": 0.31445225066768195,
   "outputTps": null,
   "ttft": null,
   "e2e": null,
