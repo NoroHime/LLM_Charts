@@ -111,17 +111,20 @@
 .glabel {
   font-size: 12px;
   color: var(--dim);
+  white-space: nowrap;
 }
 .gval {
   font-size: 12px;
   color: var(--muted);
   min-width: 20px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .gdepth {
   font-size: 11px;
   color: var(--dim);
   min-width: 46px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .seg {
@@ -228,6 +231,7 @@
 .ghost.mini {
   padding: 3px 8px;
   font-size: 11px;
+  white-space: nowrap;
 }
 .ghost.on {
   color: #bfe6ff;
@@ -562,9 +566,15 @@
   }
   .lblgroup {
     flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
   .lblgroup .lblctl {
-    flex: 1;
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .btnrow {
+    flex: 1 1 100%;
   }
   .lblctl input[type='range'] {
     width: auto;

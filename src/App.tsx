@@ -111,8 +111,11 @@ export default function App() {
   const [scale, setScale] = useState<ScaleMode>('log')
   const [hidden, setHidden] = useState<Set<string>>(() => new Set<string>())
   const [query, setQuery] = useState('')
-  // 标签按「帕累托深度」分层：0 = 前沿，越往右加入越外围的点；默认右端 = 全部
-  const [labelDepth, setLabelDepth] = useState(MAX_DEPTH)
+  // 标签按「帕累托深度」分层：0 = 前沿，越往右加入越外围的点。
+  // 宽屏默认右端（全部）；窄屏（<900px，手机/平板/半屏窗口）默认只标前沿层，避免一上来糊成一片。
+  const [labelDepth, setLabelDepth] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : MAX_DEPTH,
+  )
   const [showFrontier, setShowFrontier] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
   const touch = useMemo(
