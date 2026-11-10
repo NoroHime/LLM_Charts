@@ -118,6 +118,12 @@
   min-width: 20px;
   font-variant-numeric: tabular-nums;
 }
+.gdepth {
+  font-size: 11px;
+  color: var(--dim);
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+}
 .seg {
   display: flex;
   border: 1px solid var(--line);
@@ -151,9 +157,43 @@
 .search:focus {
   border-color: rgba(125, 211, 252, 0.45);
 }
-input[type='range'] {
-  width: 132px;
+/* 直显标签：滑块 + 单步加减，窄屏也能精确调 */
+.lblctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lblctl input[type='range'] {
+  width: 118px;
+  height: 18px;
   accent-color: #7dd3fc;
+  cursor: pointer;
+}
+.stepbtn {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.stepbtn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.stepbtn:disabled {
+  opacity: 0.34;
+  cursor: default;
 }
 .switch {
   display: flex;
@@ -177,9 +217,27 @@ input[type='range'] {
   border-radius: 8px;
   cursor: pointer;
 }
-.ghost:hover {
+.ghost:hover:not(:disabled) {
   color: var(--text);
   border-color: rgba(255, 255, 255, 0.22);
+}
+.ghost:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+.ghost.mini {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.ghost.on {
+  color: #bfe6ff;
+  background: rgba(125, 211, 252, 0.14);
+  border-color: rgba(125, 211, 252, 0.42);
+}
+.btnrow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* ---------- creator chips ---------- */
@@ -216,6 +274,15 @@ input[type='range'] {
 }
 .chip.off i {
   background: #555 !important;
+}
+.chip .cn {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.chip.off .cn {
+  color: #4a5162;
 }
 
 /* ---------- board ---------- */
@@ -434,6 +501,7 @@ input[type='range'] {
   color: #6b7280;
 }
 
+/* ---------- 自适应：平板 / 手机 ---------- */
 @media (max-width: 1080px) {
   .board {
     grid-template-columns: minmax(0, 1fr);
@@ -442,6 +510,159 @@ input[type='range'] {
     position: static;
   }
   .chart {
-    height: 520px;
+    height: 560px;
+  }
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 16px 14px 14px;
+    gap: 12px;
+  }
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .hero-main h1 {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+  .hero-main h1 em {
+    font-size: 15px;
+  }
+  .sub {
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+  .stat {
+    min-width: 0;
+    padding: 8px 11px;
+  }
+  .stat .sv {
+    font-size: 19px;
+  }
+  .stat .sh {
+    max-width: 100%;
+  }
+  .toolbar {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .group.grow {
+    order: -1;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .lblgroup {
+    flex: 1 1 100%;
+  }
+  .lblgroup .lblctl {
+    flex: 1;
+  }
+  .lblctl input[type='range'] {
+    width: auto;
+    flex: 1;
+    min-width: 90px;
+  }
+  .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chip {
+    flex: 0 0 auto;
+  }
+  .board {
+    gap: 12px;
+  }
+  .chart {
+    height: clamp(400px, 66dvh, 620px);
+    min-height: 0;
+  }
+  /* 窄屏没有侧栏位置：详情改成底部浮层，未选中时收起 */
+  .panel:not(.on) {
+    display: none;
+  }
+  .panel.on {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 30;
+    max-height: 60dvh;
+    overflow-y: auto;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.62);
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 12px 10px 10px;
+    gap: 10px;
+  }
+  .hero-main h1 {
+    font-size: 19px;
+    line-height: 1.4;
+  }
+  .hero-main h1 .sep {
+    display: none;
+  }
+  .hero-main h1 em {
+    display: block;
+    font-size: 13px;
+    margin-top: 3px;
+  }
+  .stat {
+    padding: 7px 9px;
+  }
+  .stat .sl {
+    font-size: 10px;
+  }
+  .stat .sv {
+    font-size: 16px;
+  }
+  .stat .sh {
+    font-size: 10px;
+  }
+  .toolbar {
+    gap: 8px;
+    padding: 9px 10px;
+  }
+  .seg button {
+    padding: 5px 10px;
+  }
+  .chart {
+    height: clamp(340px, 60dvh, 480px);
+    border-radius: 12px;
+  }
+  .panel {
+    padding: 13px;
+  }
+  .panel.on {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-height: 66dvh;
+  }
+  .foot {
+    font-size: 10.5px;
+    line-height: 1.7;
+  }
+  .tt {
+    min-width: 0;
+    max-width: 76vw;
+  }
+  .tt-row {
+    gap: 12px;
   }
 }
