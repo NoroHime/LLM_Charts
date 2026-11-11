@@ -1264,6 +1264,22 @@
   "reasoning": true
  },
  {
+  "slug": "solar-pro4",
+  "name": "Solar Pro 4",
+  "creator": "Upstage",
+  "color": "#7c59f5",
+  "intelligence": 14.16,
+  "costPerTask": 0.9557366659448332,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 512000,
+  "pIn": 0.3,
+  "pOut": 1.2,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
   "slug": "apodex-1-1",
   "name": "Apodex 1.1",
   "creator": "Apodex",
