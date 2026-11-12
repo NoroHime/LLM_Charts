@@ -240,6 +240,22 @@
   "reasoning": true
  },
  {
+  "slug": "gemini-4-hydrogen",
+  "name": "Gemini 4 Hydrogen (Xhigh)",
+  "creator": "Google",
+  "color": "#34A853",
+  "intelligence": 53.92,
+  "costPerTask": 3.1601590757006157,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1000000,
+  "pIn": 1.5,
+  "pOut": 7.5,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
   "slug": "gpt-6-1-sol-xhigh",
   "name": "GPT-6.1 Sol (Xhigh)",
   "creator": "OpenAI",
@@ -300,6 +316,22 @@
   "context": 1000000,
   "pIn": 1,
   "pOut": 5,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
+  "slug": "gemini-4-hydrogen-high",
+  "name": "Gemini 4 Hydrogen (High)",
+  "creator": "Google",
+  "color": "#34A853",
+  "intelligence": 50.79,
+  "costPerTask": 1.8733140062520008,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1000000,
+  "pIn": 1.5,
+  "pOut": 7.5,
   "openWeights": false,
   "reasoning": true
  },
@@ -476,6 +508,22 @@
   "context": 1000000,
   "pIn": 2,
   "pOut": 10,
+  "openWeights": false,
+  "reasoning": true
+ },
+ {
+  "slug": "gemini-4-hydrogen-medium",
+  "name": "Gemini 4 Hydrogen (Medium)",
+  "creator": "Google",
+  "color": "#34A853",
+  "intelligence": 41.23,
+  "costPerTask": 0.7979866055252406,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1000000,
+  "pIn": 1.5,
+  "pOut": 7.5,
   "openWeights": false,
   "reasoning": true
  },
@@ -896,6 +944,22 @@
   "reasoning": true
  },
  {
+  "slug": "qwen3-8-flash-next",
+  "name": "Qwen3.8-Flash-Next",
+  "creator": "Alibaba",
+  "color": "#ff7018",
+  "intelligence": 28.58,
+  "costPerTask": 0.5693810918846318,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 256000,
+  "pIn": 0.15,
+  "pOut": 0.47,
+  "openWeights": true,
+  "reasoning": true
+ },
+ {
   "slug": "step-5",
   "name": "Step 5 Preview",
   "creator": "StepFun",
@@ -941,6 +1005,22 @@
   "pIn": 0.15,
   "pOut": 0.5,
   "openWeights": true,
+  "reasoning": true
+ },
+ {
+  "slug": "gemini-4-hydrogen-low",
+  "name": "Gemini 4 Hydrogen (Low)",
+  "creator": "Google",
+  "color": "#34A853",
+  "intelligence": 26.89,
+  "costPerTask": 0.2922227000200506,
+  "outputTps": null,
+  "ttft": null,
+  "e2e": null,
+  "context": 1000000,
+  "pIn": 1.5,
+  "pOut": 7.5,
+  "openWeights": false,
   "reasoning": true
  },
  {
