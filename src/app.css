@@ -456,6 +456,43 @@
   font-size: 12px;
 }
 
+/* 轴标题放在图表底部：左下角 Y、右下角 X，避免竖排旋转占宽度、箭头方向错 */
+.axis-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 14px;
+  pointer-events: none;
+  font-size: 11px;
+  color: #98a1b5;
+}
+.axis-caption .ac-y {
+  color: #98a1b5;
+}
+.axis-caption .ac-x {
+  color: #98a1b5;
+}
+
+/* 底部比例尺：给不方便滚轮/双指的设备一个可控入口 */
+.scalebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.scalebar input[type='range'] {
+  flex: 1;
+  min-width: 100px;
+  accent-color: #7dd3fc;
+  cursor: pointer;
+}
+
 .foot {
   font-size: 11.5px;
   color: var(--dim);
@@ -673,6 +710,15 @@
   }
   .chip {
     padding: 4px 9px;
+  }
+  .axis-caption {
+    font-size: 10px;
+    padding: 0 8px;
+    bottom: 3px;
+  }
+  .scalebar {
+    gap: 6px;
+    padding: 7px 8px;
   }
   .chart {
     /* 图表吃掉剩余视口高度，别再留出大片空白 */

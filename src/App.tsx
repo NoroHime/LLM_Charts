@@ -85,6 +85,11 @@ const LABEL_SCALE_MIN = 0.5
 const LABEL_SCALE_MAX = 2
 const LABEL_SCALE_STEP = 0.05
 
+/** 比例尺（坐标轴缩放倍率）范围，1× = 全量 */
+const ZOOM_MIN = 1
+const ZOOM_MAX = 8
+const clampZoom = (v: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v))
+
 const fmtUsd = (v: number) =>
   v >= 1 ? '$' + v.toFixed(2) : v >= 0.1 ? '$' + v.toFixed(3) : '$' + v.toFixed(4)
 
@@ -129,6 +134,7 @@ export default function App() {
     typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : MAX_DEPTH,
   )
   const [labelScale, setLabelScale] = useState(1)
+  const [zoomLevel, setZoomLevel] = useState(ZOOM_MIN)
   const [showFrontier, setShowFrontier] = useState(true)
   const [showFamilies, setShowFamilies] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
@@ -168,11 +174,15 @@ export default function App() {
     // 手机端优先把宽度让给绘图区：坐标轴名缩短、留白压到最小
     const gridLeft = mobile ? 34 : narrow ? 56 : 68
     const gridRight = mobile ? 18 : narrow ? 104 : 132
-    const gridBottom = mobile ? 30 : 56
     const labelFont = (mobile ? 9 : narrow ? 10.5 : 11) * labelScale
     const symbolK = mobile ? 0.8 : narrow ? 0.9 : 1
     // 估算绘图区宽度：用于把贴近右侧边界的标签翻到圆点左边，避免被裁
     const chartW = Math.max(260, vp.w - (narrow ? 26 : 58) - 14)
+
+    // 比例尺：以数据范围为锚点做对称缩放，1× = 全量，8× = 放大到 12.5% 窗口
+    const span = 100 / zoomLevel
+    const zoomStart = (100 - span) / 2
+    const zoomEnd = zoomStart + span
 
     // 标签优先级 = 帕累托深度：越靠前沿越先出现，深度阈值之外的保持无标签
     const labeled = new Set(visible.filter((r) => r.depth <= labelDepth).map((r) => r.slug))
@@ -280,7 +290,7 @@ export default function App() {
         left: gridLeft,
         right: gridRight,
         top: mobile ? 12 : 26,
-        bottom: gridBottom,
+        bottom: mobile ? 30 : 44,
       },
       tooltip: {
         trigger: 'item',
@@ -321,10 +331,6 @@ export default function App() {
       },
       xAxis: {
         type: scale === 'log' ? 'log' : 'value',
-        name: mobile ? '成本 $ →' : '每任务成本 (USD)  →',
-        nameLocation: 'middle',
-        nameGap: mobile ? 20 : 32,
-        nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
         min: scale === 'log' ? X_MIN_LOG : 0,
         max: X_MAX,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
@@ -337,55 +343,49 @@ export default function App() {
       },
       yAxis: {
         type: 'value',
-        name: mobile ? '智能 ↑' : 'AA 智能指数  ↑',
-        nameLocation: 'middle',
-        nameGap: mobile ? 24 : 42,
-        nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
+        // 标题不交给 ECharts 竖排（旋转后箭头方向会错），改由 HTML 放在左下角
         min: 0,
         max: Y_MAX,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
         axisLabel: { color: '#8b93a7', fontSize: mobile ? 9.5 : 11 },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
-      // 桌面滚轮缩放 / 按住拖拽平移；触屏双指缩放 / 单指拖拽平移。
-      // 容器上的 touch-action:none 让图表独占手势，避免与浏览器原生页面缩放双重触发。
-      // minSpan 限制最小窗口，防止无限放大后坐标轴飘走。
+      // zoomLock:true 关掉 ECharts 内置 pinch（它对每个 touchmove 固定连乘 1.1 倍，
+      // 双指稍动就会爆炸式放大）。缩放改由外侧「比例尺」滑条与自定义线性 pinch 控制，
+      // 拖拽平移仍由 inside dataZoom 提供。filterMode:none 只改视窗不过滤数据。
       dataZoom: [
         {
           type: 'inside',
           xAxisIndex: 0,
           filterMode: 'none',
-          zoomOnMouseWheel: true,
+          zoomOnMouseWheel: false,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
           preventDefaultMouseMove: false,
-          zoomLock: false,
-          startValue: scale === 'log' ? X_MIN_LOG : 0,
-          endValue: X_MAX,
+          zoomLock: true,
+          start: zoomStart,
+          end: zoomEnd,
           minSpan: 12,
           maxSpan: 100,
-          minValueSpan: scale === 'log' ? 0.02 : 0.5,
-          maxValueSpan: scale === 'log' ? X_MAX - X_MIN_LOG : X_MAX,
         },
         {
           type: 'inside',
           yAxisIndex: 0,
           filterMode: 'none',
-          zoomOnMouseWheel: true,
+          zoomOnMouseWheel: false,
           moveOnMouseMove: true,
           moveOnMouseWheel: false,
           preventDefaultMouseMove: false,
-          startValue: 0,
-          endValue: Y_MAX,
+          zoomLock: true,
+          start: zoomStart,
+          end: zoomEnd,
           minSpan: 12,
           maxSpan: 100,
-          minValueSpan: 5,
-          maxValueSpan: Y_MAX,
         },
       ],
       series: series as never,
     }
-  }, [visible, scale, labelDepth, labelScale, showFrontier, showFamilies, pinned, vp.w, touch])
+  }, [visible, scale, labelDepth, labelScale, zoomLevel, showFrontier, showFamilies, pinned, vp.w, touch])
 
   const toggleCreator = (c: string) => {
     const next = new Set(hidden)
@@ -537,7 +537,11 @@ export default function App() {
           <span>档位连线</span>
         </label>
 
-        <button className="ghost" onClick={() => setZoom((z) => z + 1)} title="滚轮缩放后恢复完整坐标范围">
+        <button
+          className="ghost"
+          onClick={() => { setZoomLevel(ZOOM_MIN); setZoom((z) => z + 1) }}
+          title="恢复完整坐标范围并回到数据中央"
+        >
           缩放复位
         </button>
 
@@ -568,10 +572,54 @@ export default function App() {
       </div>
 
       <div className="board">
-        <Chart option={option} onPick={setPinned} zoom={zoom} />
+        <Chart
+          option={option}
+          onPick={setPinned}
+          zoom={zoom}
+          zoomLevel={zoomLevel}
+          onZoom={setZoomLevel}
+        />
         <aside className={pinned ? 'panel on' : 'panel'}>
           {pinned ? <Detail row={pinned} onClose={() => setPinned(null)} /> : <Empty />}
         </aside>
+        <div className="axis-caption">
+          <span className="ac-y">AA 智能指数 ↑</span>
+          <span className="ac-x">每任务成本 (USD) →</span>
+        </div>
+      </div>
+
+      <div className="scalebar">
+        <span className="glabel">比例尺</span>
+        <button
+          className="stepbtn"
+          onClick={() => setZoomLevel((z) => clampZoom(+(z - 0.25).toFixed(2)))}
+          disabled={zoomLevel <= ZOOM_MIN}
+          aria-label="缩小比例尺"
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={ZOOM_MIN}
+          max={ZOOM_MAX}
+          step={0.05}
+          value={zoomLevel}
+          onChange={(e) => setZoomLevel(clampZoom(Number(e.target.value)))}
+          aria-label="坐标缩放倍率"
+          title="1× = 全量范围，向右放大；也可滚轮 / 双指缩放"
+        />
+        <button
+          className="stepbtn"
+          onClick={() => setZoomLevel((z) => clampZoom(+(z + 0.25).toFixed(2)))}
+          disabled={zoomLevel >= ZOOM_MAX}
+          aria-label="放大比例尺"
+        >
+          +
+        </button>
+        <span className="gdepth">{zoomLevel.toFixed(2)}×</span>
+        <button className={'ghost mini' + (zoomLevel === ZOOM_MIN ? ' on' : '')} onClick={() => setZoomLevel(ZOOM_MIN)}>
+          复位
+        </button>
       </div>
 
       <footer className="foot">
@@ -612,7 +660,19 @@ function downloadPng(scale: ScaleMode) {
   a.click()
 }
 
-function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick: (r: Row) => void; zoom: number }) {
+function Chart({
+  option,
+  onPick,
+  zoom,
+  zoomLevel,
+  onZoom,
+}: {
+  option: echarts.EChartsOption
+  onPick: (r: Row) => void
+  zoom: number
+  zoomLevel: number
+  onZoom: (v: number) => void
+}) {
   const box = useRef<HTMLDivElement | null>(null)
   const inst = useRef<echarts.ECharts | null>(null)
   const pick = useRef(onPick)
@@ -620,6 +680,11 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
   // 平移坐标轴时不要顺手把点选/详情弹出来
   const dragStart = useRef<{ x: number; y: number } | null>(null)
   const dragged = useRef(false)
+  // 自定义线性双指缩放：记录手势起始指距与起始倍率，按真实距离比例映射
+  const pinch = useRef<{ dist: number; level: number } | null>(null)
+  const zoomRef = useRef(ZOOM_MIN)
+  const onZoomRef = useRef(onZoom)
+  onZoomRef.current = onZoom
 
   useLayoutEffect(() => {
     if (!box.current) return
@@ -649,6 +714,34 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
     el.addEventListener('pointerdown', onDown)
     el.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    const distOf = (t: TouchList) =>
+      t.length >= 2 ? Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) : 0
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch.current = { dist: distOf(e.touches), level: zoomRef.current }
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      const p = pinch.current
+      if (!p || e.touches.length !== 2 || p.dist < 1) return
+      // 线性：指距变成 2 倍 => 倍率变成 2 倍，不再是每个 move 连乘 1.1
+      const next = clampZoom(p.level * (distOf(e.touches) / p.dist))
+      zoomRef.current = next
+      onZoomRef.current(next)
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch.current = null
+    }
+    // 桌面滚轮：平滑指数映射，连续滚动直接累乘到本地 ref，不依赖 React 批处理
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const next = clampZoom(zoomRef.current * Math.exp(-e.deltaY * 0.0015))
+      zoomRef.current = next
+      onZoomRef.current(next)
+    }
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true })
+    el.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: false })
     const ro = new ResizeObserver(() => chart.resize())
     ro.observe(box.current)
     return () => {
@@ -656,6 +749,11 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+      el.removeEventListener('wheel', onWheel)
       chart.dispose()
       inst.current = null
     }
@@ -664,6 +762,11 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
   useEffect(() => {
     inst.current?.setOption(option, { notMerge: true })
   }, [option])
+
+  // 保持 pinch 起始倍率与外部状态同步
+  useEffect(() => {
+    zoomRef.current = zoomLevel
+  }, [zoomLevel])
 
   // 复位：把 dataZoom 的窗口拉回全量范围（跳过首次渲染）
   useEffect(() => {
