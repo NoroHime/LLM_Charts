@@ -51,12 +51,13 @@ export function buildFamilyLinks(rows: PlotRow[]): FamilyLink[] {
     .map(([key, items]) => ({
       key,
       color: items[0].color,
-      // Sort along the x axis so the polyline does not zigzag back and forth.
+      // Link by AA Intelligence Index (y axis): tiers form a monotone climb
+      // from the weakest to the strongest variant of the same model.
       points: [...items]
         .sort(
           (a, b) =>
-            a.displayCost - b.displayCost ||
             a.intelligence - b.intelligence ||
+            a.displayCost - b.displayCost ||
             a.slug.localeCompare(b.slug),
         )
         .map((r) => ({ x: r.displayCost, y: r.intelligence, name: r.name, slug: r.slug })),
