@@ -304,6 +304,9 @@
   border-radius: 14px;
   background: var(--surface);
   padding: 6px;
+  /* 图表独占手势：单指拖拽平移 / 双指缩放坐标轴，不触发浏览器页面缩放。
+     页面其余区域可正常上下滚动，图表区用「缩放复位」或滚出即可继续浏览。 */
+  touch-action: none;
 }
 .panel {
   position: absolute;
@@ -572,12 +575,14 @@
     flex: 1 1 100%;
     min-width: 0;
   }
-  .lblgroup {
+  .lblgroup,
+  .fontgroup {
     flex: 1 1 100%;
     flex-wrap: wrap;
     row-gap: 8px;
   }
-  .lblgroup .lblctl {
+  .lblgroup .lblctl,
+  .fontgroup .lblctl {
     flex: 1 1 140px;
     min-width: 0;
   }
@@ -589,13 +594,10 @@
     flex: 1;
     min-width: 90px;
   }
+  /* 与桌面一致：厂商 chip 允许换行成多行，全部厂商一屏可见 */
   .chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 4px;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
+    flex-wrap: wrap;
+    overflow: visible;
   }
   .chip {
     flex: 0 0 auto;

@@ -80,6 +80,11 @@ for (const r of ROWS) CREATOR_COUNT.set(r.creator, (CREATOR_COUNT.get(r.creator)
 const MAX_DEPTH = ROWS.reduce((m, r) => Math.max(m, r.depth), 0)
 const DEPTH_FRONT = ROWS.filter((r) => r.depth === 0).length
 
+/** 标签字号倍率：滑条 0.5×–2.0×，默认 1.0× 正好在中点 */
+const LABEL_SCALE_MIN = 0.5
+const LABEL_SCALE_MAX = 2
+const LABEL_SCALE_STEP = 0.05
+
 const fmtUsd = (v: number) =>
   v >= 1 ? '$' + v.toFixed(2) : v >= 0.1 ? '$' + v.toFixed(3) : '$' + v.toFixed(4)
 
@@ -123,11 +128,12 @@ export default function App() {
   const [labelDepth, setLabelDepth] = useState(() =>
     typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : MAX_DEPTH,
   )
+  const [labelScale, setLabelScale] = useState(1)
   const [showFrontier, setShowFrontier] = useState(true)
   const [showFamilies, setShowFamilies] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
   const [zoom, setZoom] = useState(0)
-  // 只有纯触屏设备（coarse pointer）才禁用图表内缩放；二合一设备带鼠标时仍可用滚轮/拖拽
+  // 仅用于决定 tooltip 触发方式（触屏点按 / 桌面悬停）；缩放平移两端都开放
   const touch = useMemo(
     () =>
       typeof window !== 'undefined' &&
@@ -163,7 +169,7 @@ export default function App() {
     const gridLeft = mobile ? 34 : narrow ? 56 : 68
     const gridRight = mobile ? 18 : narrow ? 104 : 132
     const gridBottom = mobile ? 30 : 56
-    const labelFont = mobile ? 9 : narrow ? 10.5 : 11
+    const labelFont = (mobile ? 9 : narrow ? 10.5 : 11) * labelScale
     const symbolK = mobile ? 0.8 : narrow ? 0.9 : 1
     // 估算绘图区宽度：用于把贴近右侧边界的标签翻到圆点左边，避免被裁
     const chartW = Math.max(260, vp.w - (narrow ? 26 : 58) - 14)
@@ -240,7 +246,7 @@ export default function App() {
         distance: mobile ? 4 : 7,
         color: 'rgba(226,232,244,0.88)',
         fontSize: labelFont,
-        lineHeight: labelFont + 3,
+        lineHeight: labelFont + 3 * labelScale,
         formatter: (p: unknown) => {
           const r = (p as { data?: { row?: Row } }).data?.row
           if (!r || !labeled.has(r.slug)) return ''
@@ -341,16 +347,16 @@ export default function App() {
         axisLabel: { color: '#8b93a7', fontSize: mobile ? 9.5 : 11 },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
-      // 桌面：滚轮缩放 + 按住拖拽平移；触屏禁用图表内 pinch（与浏览器双指缩放冲突，
-      // 之前会把坐标轴推到范围外）。minSpan 限制最小窗口，防止无限放大后轴飘走。
+      // 桌面滚轮缩放 / 按住拖拽平移；触屏双指缩放 / 单指拖拽平移。
+      // 容器上的 touch-action:none 让图表独占手势，避免与浏览器原生页面缩放双重触发。
+      // minSpan 限制最小窗口，防止无限放大后坐标轴飘走。
       dataZoom: [
         {
           type: 'inside',
           xAxisIndex: 0,
           filterMode: 'none',
-          disabled: touch,
-          zoomOnMouseWheel: !touch,
-          moveOnMouseMove: !touch,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
           moveOnMouseWheel: false,
           preventDefaultMouseMove: false,
           zoomLock: false,
@@ -365,9 +371,8 @@ export default function App() {
           type: 'inside',
           yAxisIndex: 0,
           filterMode: 'none',
-          disabled: touch,
-          zoomOnMouseWheel: !touch,
-          moveOnMouseMove: !touch,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
           moveOnMouseWheel: false,
           preventDefaultMouseMove: false,
           startValue: 0,
@@ -380,7 +385,7 @@ export default function App() {
       ],
       series: series as never,
     }
-  }, [visible, scale, labelDepth, showFrontier, showFamilies, pinned, vp.w, touch])
+  }, [visible, scale, labelDepth, labelScale, showFrontier, showFamilies, pinned, vp.w, touch])
 
   const toggleCreator = (c: string) => {
     const next = new Set(hidden)
@@ -475,6 +480,46 @@ export default function App() {
             title="显示全部入选模型的标签"
           >
             全部
+          </button>
+        </div>
+
+        <div className="group fontgroup">
+          <span className="glabel">标签字号</span>
+          <div className="lblctl">
+            <button
+              className="stepbtn"
+              onClick={() => setLabelScale((s) => Math.max(LABEL_SCALE_MIN, +(s - LABEL_SCALE_STEP).toFixed(2)))}
+              disabled={labelScale <= LABEL_SCALE_MIN}
+              aria-label="缩小标签字号"
+            >
+              −
+            </button>
+            <input
+              type="range"
+              min={LABEL_SCALE_MIN}
+              max={LABEL_SCALE_MAX}
+              step={LABEL_SCALE_STEP}
+              value={labelScale}
+              onChange={(e) => setLabelScale(Number(e.target.value))}
+              aria-label="标签字号倍率"
+              title="0.5× – 2.0×，默认 1.0×"
+            />
+            <button
+              className="stepbtn"
+              onClick={() => setLabelScale((s) => Math.min(LABEL_SCALE_MAX, +(s + LABEL_SCALE_STEP).toFixed(2)))}
+              disabled={labelScale >= LABEL_SCALE_MAX}
+              aria-label="放大标签字号"
+            >
+              +
+            </button>
+          </div>
+          <span className="gdepth">{labelScale.toFixed(2)}×</span>
+          <button
+            className={'ghost mini' + (labelScale === 1 ? ' on' : '')}
+            onClick={() => setLabelScale(1)}
+            title="恢复默认字号"
+          >
+            默认
           </button>
         </div>
 
