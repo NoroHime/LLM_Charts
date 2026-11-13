@@ -3,6 +3,7 @@ import * as echarts from 'echarts'
 import raw from './data/models.json'
 import meta from './data/meta.json'
 import type { ModelPoint, ScaleMode } from './types'
+import { buildFamilyLinks, dimColor } from './families'
 import './app.css'
 
 const FETCHED_AT = new Date(meta.fetchedAt).toLocaleString('zh-CN', {
@@ -15,6 +16,10 @@ const FETCHED_AT = new Date(meta.fetchedAt).toLocaleString('zh-CN', {
 
 /** 免费模型成本为 0，对数轴无法表示，统一抬到下限 */
 const COST_FLOOR = 0.005
+/** 坐标轴默认范围与缩放边界（滚轮缩放 / 复位用） */
+const X_MIN_LOG = COST_FLOOR
+const X_MAX = 100
+const Y_MAX = 70
 
 type Row = ModelPoint & { displayCost: number; onFrontier: boolean; ratio: number; depth: number }
 
@@ -117,7 +122,9 @@ export default function App() {
     typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : MAX_DEPTH,
   )
   const [showFrontier, setShowFrontier] = useState(true)
+  const [showFamilies, setShowFamilies] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
+  const [zoom, setZoom] = useState(0)
   const touch = useMemo(
     () => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches,
     [],
@@ -152,10 +159,7 @@ export default function App() {
     const labelFont = mobile ? 9.5 : narrow ? 10.5 : 11
     const symbolK = mobile ? 0.8 : narrow ? 0.9 : 1
     // 估算绘图区宽度：用于把贴近右侧边界的标签翻到圆点左边，避免被裁
-    const chartW = Math.max(
-      260,
-      Math.min(vp.w, 1560) - (narrow ? 26 : 58) - (narrow ? 0 : 322) - 14,
-    )
+    const chartW = Math.max(260, vp.w - (narrow ? 26 : 58) - 14)
 
     // 标签优先级 = 帕累托深度：越靠前沿越先出现，深度阈值之外的保持无标签
     const labeled = new Set(visible.filter((r) => r.depth <= labelDepth).map((r) => r.slug))
@@ -173,6 +177,31 @@ export default function App() {
         silent: true,
         z: 1,
       })
+    }
+
+    // 同一模型的不同思考档位：细实线，用公司强调色的暗淡版本，明显区别于帕累托虚线
+    if (showFamilies) {
+      for (const fam of buildFamilyLinks(visible)) {
+        series.push({
+          name: fam.key,
+          type: 'line',
+          data: fam.points.map((p) => [p.x, p.y]),
+          showSymbol: false,
+          symbol: 'none',
+          silent: true,
+          connectNulls: false,
+          lineStyle: {
+            color: dimColor(fam.color, 0.2),
+            width: 1,
+            type: 'solid',
+            opacity: 1,
+            curveness: 0,
+          },
+          emphasis: { disabled: true },
+          tooltip: { show: false },
+          z: 2,
+        })
+      }
     }
 
     // 所有厂商共用一个 scatter 系列：labelLayout 的避让才能跨厂商全局生效
@@ -283,7 +312,8 @@ export default function App() {
         nameLocation: 'middle',
         nameGap: mobile ? 26 : 32,
         nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
-        min: scale === 'log' ? COST_FLOOR : 0,
+        min: scale === 'log' ? X_MIN_LOG : 0,
+        max: X_MAX,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
         axisLabel: {
           color: '#8b93a7',
@@ -299,14 +329,42 @@ export default function App() {
         nameGap: mobile ? 30 : 42,
         nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
         min: 0,
-        max: (v: { max: number }) => Math.ceil((v.max + 4) / 5) * 5,
+        max: Y_MAX,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
         axisLabel: { color: '#8b93a7', fontSize: mobile ? 9.5 : 11 },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
+      // 滚轮缩放坐标轴；触屏用双指，桌面用滚轮。inside 不占绘图区空间。
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: 0,
+          filterMode: 'none',
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          zoomLock: false,
+          startValue: scale === 'log' ? X_MIN_LOG : 0,
+          endValue: X_MAX,
+          minValueSpan: scale === 'log' ? 0.004 : 0.5,
+          maxValueSpan: scale === 'log' ? X_MAX - X_MIN_LOG : X_MAX,
+        },
+        {
+          type: 'inside',
+          yAxisIndex: 0,
+          filterMode: 'none',
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          startValue: 0,
+          endValue: Y_MAX,
+          minValueSpan: 2,
+          maxValueSpan: Y_MAX,
+        },
+      ],
       series: series as never,
     }
-  }, [visible, scale, labelDepth, showFrontier, pinned, vp.w, touch])
+  }, [visible, scale, labelDepth, showFrontier, showFamilies, pinned, vp.w, touch])
 
   const toggleCreator = (c: string) => {
     const next = new Set(hidden)
@@ -413,6 +471,15 @@ export default function App() {
           <span>帕累托前沿</span>
         </label>
 
+        <label className="switch">
+          <input type="checkbox" checked={showFamilies} onChange={(e) => setShowFamilies(e.target.checked)} />
+          <span>档位连线</span>
+        </label>
+
+        <button className="ghost" onClick={() => setZoom((z) => z + 1)} title="滚轮缩放后恢复完整坐标范围">
+          缩放复位
+        </button>
+
         <div className="group btnrow">
           <button className="ghost" onClick={invertCreators} title="显示的厂商全部隐藏，隐藏的全部显示">
             反选厂商
@@ -440,7 +507,7 @@ export default function App() {
       </div>
 
       <div className="board">
-        <Chart option={option} onPick={setPinned} />
+        <Chart option={option} onPick={setPinned} zoom={zoom} />
         <aside className={pinned ? 'panel on' : 'panel'}>
           {pinned ? <Detail row={pinned} onClose={() => setPinned(null)} /> : <Empty />}
         </aside>
@@ -484,7 +551,7 @@ function downloadPng(scale: ScaleMode) {
   a.click()
 }
 
-function Chart({ option, onPick }: { option: echarts.EChartsOption; onPick: (r: Row) => void }) {
+function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick: (r: Row) => void; zoom: number }) {
   const box = useRef<HTMLDivElement | null>(null)
   const inst = useRef<echarts.ECharts | null>(null)
   const pick = useRef(onPick)
@@ -511,6 +578,12 @@ function Chart({ option, onPick }: { option: echarts.EChartsOption; onPick: (r: 
   useEffect(() => {
     inst.current?.setOption(option, { notMerge: true })
   }, [option])
+
+  // 复位：把 dataZoom 的窗口拉回全量范围（跳过首次渲染）
+  useEffect(() => {
+    if (zoom === 0) return
+    inst.current?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
+  }, [zoom])
 
   return <div className="chart" ref={box} />
 }
@@ -581,6 +654,9 @@ function Empty() {
         </li>
         <li>
           <b>标签深度</b>：0 层 = 只标前沿，向右逐层放开外围点
+        </li>
+        <li>
+          <b>滚轮</b>缩放坐标轴，<b>拖拽</b>平移；右上角「缩放复位」还原
         </li>
       </ul>
     </div>
