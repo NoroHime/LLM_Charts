@@ -1,15 +1,16 @@
 import type { ModelPoint } from './types'
 
 /**
- * Family grouping for the "same model, different thinking tiers" links.
- * Standalone module: the grouping rule can be swapped without touching the chart.
+ * Family grouping for "same model, different thinking tiers" links.
+ * Standalone module so the rule can be swapped without touching the chart.
  *
- * Rule (per user): creator + model name + FULL numeric version is enough.
- *   - "GPT-6 Luna (Low)" and "GPT-6 Astra (Max)" share "GPT-6" -> linked.
- *   - "GPT-6.1 Sol (High)" and "GPT-6.1 Terra (Max)" share "GPT-6.1" -> linked.
- *   - "GPT-6" and "GPT-6.1" are DIFFERENT versions -> never merged.
- * Grade subtitles after the version (Luna / Terra / Sol / Astra ...) are different
- * grades of the same model family, so they are intentionally grouped together.
+ * Strict rule (per user): the model name WITH its full version number must match
+ * exactly; only a trailing thinking-tier suffix may differ.
+ *   - "GPT-6.1 Sol (Low)" .. "(Max)"  -> one family (5 points)
+ *   - "GPT-6.1 Terra (Low)" .. "(Max)" -> another family (6 points)
+ *   - "GPT-6 Luna" and "GPT-6 Astra"   -> DIFFERENT families (never merged)
+ *   - "GPT-6" and "GPT-6.1"            -> DIFFERENT versions (never merged)
+ * Names without a recognised tier tail are excluded from linking.
  */
 
 export interface FamilyPoint {
@@ -27,28 +28,23 @@ export interface FamilyLink {
 
 type PlotRow = ModelPoint & { displayCost: number }
 
-/** Strip a trailing tier tail such as "(Max, Default Fallback)" or "(Non-reasoning)". */
-function stripTier(name: string): string {
-  return name.replace(/\s*\([^)]*\)\s*$/, '').trim()
-}
-
-/** Keep brand + full version; drop the grade subtitle after it. */
-function familyKey(r: PlotRow): string {
-  const base = stripTier(r.name)
-  // Capture up to the last standalone numeric version (6, 6.1, 5.2, 4.7, 3.8 ...).
-  const m = base.match(/^(.*?\d+(?:\.\d+)?)\s+(.+)$/)
-  const stem = (m ? m[1] : base).toLowerCase().replace(/[\s._-]+$/, '')
-  return r.creator + '|' + stem
-}
+/**
+ * Whitelist the effort/reasoning tails. "(0902)" (a date), "(Reasoning)"
+ * (a capability flag) and similar are NOT tiers, so they never group.
+ */
+const TIER =
+  /^(.*?)\s*\((?:Max|Xhigh|High|Medium|Low|Non-reasoning)(?:,\s*Default Fallback)?\)\s*$/i
 
 /** Build link groups; only groups with >= 2 visible members produce a line. */
 export function buildFamilyLinks(rows: PlotRow[]): FamilyLink[] {
   const groups = new Map<string, PlotRow[]>()
   for (const r of rows) {
-    const k = familyKey(r)
-    const arr = groups.get(k) ?? []
+    const base = r.name.match(TIER)?.[1]?.trim()
+    if (!base) continue
+    const key = r.creator + '|' + base.toLowerCase()
+    const arr = groups.get(key) ?? []
     arr.push(r)
-    groups.set(k, arr)
+    groups.set(key, arr)
   }
   return [...groups.entries()]
     .filter(([, items]) => items.length >= 2)
@@ -68,7 +64,7 @@ export function buildFamilyLinks(rows: PlotRow[]): FamilyLink[] {
 }
 
 /** Dim the company accent color so links stay quiet in the background. */
-export function dimColor(color: string, alpha = 0.22): string {
+export function dimColor(color: string, alpha = 0.4): string {
   const hex = color.trim()
   const m3 = hex.match(/^#([0-9a-f]{3})$/i)
   const m6 = hex.match(/^#([0-9a-f]{6})$/i)

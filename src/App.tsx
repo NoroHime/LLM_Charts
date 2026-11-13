@@ -16,9 +16,7 @@ const FETCHED_AT = new Date(meta.fetchedAt).toLocaleString('zh-CN', {
 
 /** 免费模型成本为 0，对数轴无法表示，统一抬到下限 */
 const COST_FLOOR = 0.005
-/** 坐标轴默认范围与缩放边界（滚轮缩放 / 复位用） */
 const X_MIN_LOG = COST_FLOOR
-const X_MAX = 100
 const Y_MAX = 70
 
 type Row = ModelPoint & { displayCost: number; onFrontier: boolean; ratio: number; depth: number }
@@ -32,6 +30,10 @@ const ROWS: Row[] = (raw as ModelPoint[])
     ratio: m.intelligence / Math.max(m.costPerTask, COST_FLOOR),
   }))
   .sort((a, b) => b.intelligence - a.intelligence)
+
+/** 坐标轴默认范围与缩放边界（滚轮缩放 / 复位用）
+ *  按实际数据最大值向上取整，别让 x 轴右半边空着（旧值固定 100，数据只到 ~26.5） */
+const X_MAX = Math.max(1, Math.ceil((Math.max(...ROWS.map((r) => r.displayCost)) * 1.08) / 5) * 5)
 
 /**
  * 帕累托深度（非支配排序分层）：
@@ -125,8 +127,11 @@ export default function App() {
   const [showFamilies, setShowFamilies] = useState(true)
   const [pinned, setPinned] = useState<Row | null>(null)
   const [zoom, setZoom] = useState(0)
+  // 只有纯触屏设备（coarse pointer）才禁用图表内缩放；二合一设备带鼠标时仍可用滚轮/拖拽
   const touch = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches,
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches,
     [],
   )
 
@@ -154,9 +159,11 @@ export default function App() {
   const option = useMemo<echarts.EChartsOption>(() => {
     const narrow = vp.w < 900
     const mobile = vp.w < 640
-    const gridLeft = mobile ? 46 : narrow ? 56 : 68
-    const gridRight = mobile ? 84 : narrow ? 104 : 132
-    const labelFont = mobile ? 9.5 : narrow ? 10.5 : 11
+    // 手机端优先把宽度让给绘图区：坐标轴名缩短、留白压到最小
+    const gridLeft = mobile ? 34 : narrow ? 56 : 68
+    const gridRight = mobile ? 18 : narrow ? 104 : 132
+    const gridBottom = mobile ? 30 : 56
+    const labelFont = mobile ? 9 : narrow ? 10.5 : 11
     const symbolK = mobile ? 0.8 : narrow ? 0.9 : 1
     // 估算绘图区宽度：用于把贴近右侧边界的标签翻到圆点左边，避免被裁
     const chartW = Math.max(260, vp.w - (narrow ? 26 : 58) - 14)
@@ -191,8 +198,8 @@ export default function App() {
           silent: true,
           connectNulls: false,
           lineStyle: {
-            color: dimColor(fam.color, 0.2),
-            width: 1,
+            color: dimColor(fam.color, 0.55),
+            width: 1.6,
             type: 'solid',
             opacity: 1,
             curveness: 0,
@@ -266,8 +273,8 @@ export default function App() {
       grid: {
         left: gridLeft,
         right: gridRight,
-        top: 26,
-        bottom: mobile ? 44 : 56,
+        top: mobile ? 12 : 26,
+        bottom: gridBottom,
       },
       tooltip: {
         trigger: 'item',
@@ -308,9 +315,9 @@ export default function App() {
       },
       xAxis: {
         type: scale === 'log' ? 'log' : 'value',
-        name: '每任务成本 (USD)  →',
+        name: mobile ? '成本 $ →' : '每任务成本 (USD)  →',
         nameLocation: 'middle',
-        nameGap: mobile ? 26 : 32,
+        nameGap: mobile ? 20 : 32,
         nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
         min: scale === 'log' ? X_MIN_LOG : 0,
         max: X_MAX,
@@ -324,9 +331,9 @@ export default function App() {
       },
       yAxis: {
         type: 'value',
-        name: mobile ? 'AA 智能指数 ↑' : 'AA 智能指数  ↑',
+        name: mobile ? '智能 ↑' : 'AA 智能指数  ↑',
         nameLocation: 'middle',
-        nameGap: mobile ? 30 : 42,
+        nameGap: mobile ? 24 : 42,
         nameTextStyle: { color: '#98a1b5', fontSize: mobile ? 10 : 12 },
         min: 0,
         max: Y_MAX,
@@ -334,31 +341,40 @@ export default function App() {
         axisLabel: { color: '#8b93a7', fontSize: mobile ? 9.5 : 11 },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
-      // 滚轮缩放坐标轴；触屏用双指，桌面用滚轮。inside 不占绘图区空间。
+      // 桌面：滚轮缩放 + 按住拖拽平移；触屏禁用图表内 pinch（与浏览器双指缩放冲突，
+      // 之前会把坐标轴推到范围外）。minSpan 限制最小窗口，防止无限放大后轴飘走。
       dataZoom: [
         {
           type: 'inside',
           xAxisIndex: 0,
           filterMode: 'none',
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: false,
+          disabled: touch,
+          zoomOnMouseWheel: !touch,
+          moveOnMouseMove: !touch,
           moveOnMouseWheel: false,
+          preventDefaultMouseMove: false,
           zoomLock: false,
           startValue: scale === 'log' ? X_MIN_LOG : 0,
           endValue: X_MAX,
-          minValueSpan: scale === 'log' ? 0.004 : 0.5,
+          minSpan: 12,
+          maxSpan: 100,
+          minValueSpan: scale === 'log' ? 0.02 : 0.5,
           maxValueSpan: scale === 'log' ? X_MAX - X_MIN_LOG : X_MAX,
         },
         {
           type: 'inside',
           yAxisIndex: 0,
           filterMode: 'none',
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: false,
+          disabled: touch,
+          zoomOnMouseWheel: !touch,
+          moveOnMouseMove: !touch,
           moveOnMouseWheel: false,
+          preventDefaultMouseMove: false,
           startValue: 0,
           endValue: Y_MAX,
-          minValueSpan: 2,
+          minSpan: 12,
+          maxSpan: 100,
+          minValueSpan: 5,
           maxValueSpan: Y_MAX,
         },
       ],
@@ -556,6 +572,9 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
   const inst = useRef<echarts.ECharts | null>(null)
   const pick = useRef(onPick)
   pick.current = onPick
+  // 平移坐标轴时不要顺手把点选/详情弹出来
+  const dragStart = useRef<{ x: number; y: number } | null>(null)
+  const dragged = useRef(false)
 
   useLayoutEffect(() => {
     if (!box.current) return
@@ -563,13 +582,35 @@ function Chart({ option, onPick, zoom }: { option: echarts.EChartsOption; onPick
     inst.current = chart
     chartInstance = chart
     chart.on('click', (p: unknown) => {
+      if (dragged.current) return
       const r = (p as { data?: { row?: Row } }).data?.row
       if (r) pick.current(r)
     })
+    const el = box.current
+    const onDown = (e: PointerEvent) => {
+      dragStart.current = { x: e.clientX, y: e.clientY }
+      dragged.current = false
+    }
+    const onMove = (e: PointerEvent) => {
+      const s = dragStart.current
+      if (!s) return
+      if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 6) dragged.current = true
+    }
+    const onUp = () => {
+      dragStart.current = null
+      // 让 click 事件先跑完再清标记
+      window.setTimeout(() => { dragged.current = false }, 0)
+    }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
     const ro = new ResizeObserver(() => chart.resize())
     ro.observe(box.current)
     return () => {
       ro.disconnect()
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
       chart.dispose()
       inst.current = null
     }
