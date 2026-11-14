@@ -296,7 +296,9 @@ export default function App() {
 
     return {
       backgroundColor: 'transparent',
-      animationDuration: 480,
+      // 关闭补间动画：筛选厂商时 setOption(notMerge) 会重建标签，
+      // moveOverlap 重新排布后的补间毫无逻辑、标签乱飞，不如直接瞬时切换。
+      animation: false,
       grid: {
         left: gridLeft,
         right: gridRight,
