@@ -828,7 +828,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
           </div>
         ))}
       </dl>
-      <a className="dlink" href={`https://artificialanalysis.ai/models/${row.slug}`} target="_blank" rel="noreferrer">
+      <a className="dlink" href={`https://artificialanalysis.ai/models/${row.linkSlug}`} target="_blank" rel="noreferrer">
         在 Artificial Analysis 查看 →
       </a>
     </div>

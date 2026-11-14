@@ -145,61 +145,81 @@ function extractFlight(html) {
 }
 
 /* ---------------- 3. 从 flight 中抠出模型对象 -------------
- * 模型对象固定以 {"slug":...,"name":...,"shortName":... 开头，
- * 从这里做括号平衡扫描即可得到完整 JSON。
+ * 旧版：模型对象以 {"slug":...,"name":...,"shortName":... 开头，散落在 flight 里。
+ * 新版（2026-11）：改为 initialModels:[{...}] 数组，主键变成 id，
+ *   slug 挪到嵌套的 release.slug；且 push 片段里的 JSON 带一层反斜杠转义。
+ * 两种形状都兼容：优先按对象前缀扫描，扫不到则回退到 initialModels 数组。
  */
-function extractModels(flight) {
-  const startRe = /\{"slug":"[^"]*","name":"[^"]*","shortName"/g
-  const starts = []
-  let m
-  while ((m = startRe.exec(flight))) starts.push(m.index)
+function unescapeFlight(text) {
+  // 新版片段内层把 " 写成了 \"，需要先还原才能被 JSON.parse 识别
+  return text.includes('\\"') ? text.replace(/\\"/g, '"') : text
+}
 
-  const sliceObject = (start) => {
-    let depth = 0
-    let inStr = false
-    let esc = false
-    for (let i = start; i < flight.length; i++) {
-      const c = flight[i]
-      if (inStr) {
-        if (esc) {
-          esc = false
-          continue
-        }
-        if (c === '\\') {
-          esc = true
-          continue
-        }
-        if (c === '"') inStr = false
-        continue
-      }
-      if (c === '"') {
-        inStr = true
-        continue
-      }
-      if (c === '{') depth++
-      else if (c === '}') {
-        depth--
-        if (depth === 0) return flight.slice(start, i + 1)
-      }
+function sliceBalanced(text, start, open, close) {
+  let depth = 0
+  let inStr = false
+  let esc = false
+  for (let i = start; i < text.length; i++) {
+    const c = text[i]
+    if (inStr) {
+      if (esc) { esc = false; continue }
+      if (c === '\\') { esc = true; continue }
+      if (c === '"') inStr = false
+      continue
     }
-    return null
+    if (c === '"') { inStr = true; continue }
+    if (c === open) depth++
+    else if (c === close) {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
   }
+  return null
+}
 
-  const bySlug = new Map()
+function extractModels(html) {
+  // 新版数据内嵌在 push 片段的转义 JSON 里，extractFlight 未必能覆盖全部片段，
+  // 所以直接在整份 HTML 上还原一层转义再定位。
+  const text = unescapeFlight(html)
+  const byKey = new Map()
   let bad = 0
-  for (const s of starts) {
-    const text = sliceObject(s)
-    if (!text) continue
-    try {
-      const obj = JSON.parse(text)
-      if (!obj?.slug) continue
-      if (!bySlug.has(obj.slug)) bySlug.set(obj.slug, obj)
-    } catch {
-      bad++
+
+  const collect = (obj) => {
+    if (!obj || typeof obj !== 'object') return
+    // 新版同一 release（如 Claude Fable 5.2）下多个思考档位共用 release.slug，
+    // 用 name 或 id 做唯一键，避免档位被去重合并；旧版直接用 slug。
+    const key = obj.slug ?? obj.id ?? obj.name
+    if (!key) return
+    if (!byKey.has(key)) byKey.set(key, obj)
+  }
+
+  // 路径 A（新版，优先）：initialModels:[...] 整包解析，避免把嵌套子对象误算成模型
+  const marker = text.indexOf('"initialModels":[')
+  if (marker >= 0) {
+    const arrStart = text.indexOf('[', marker)
+    const chunk = sliceBalanced(text, arrStart, '[', ']')
+    if (chunk) {
+      try {
+        for (const obj of JSON.parse(chunk)) collect(obj)
+      } catch (e) {
+        console.log(`· initialModels 解析失败：${e.message}`)
+      }
     }
   }
+
+  // 路径 B（旧版，兜底）：散落的 {"slug":...,"name":...,"shortName" 对象
+  if (!byKey.size) {
+    const startRe = /\{"slug":"[^"]*","name":"[^"]*","shortName"/g
+    let m
+    while ((m = startRe.exec(text))) {
+      const chunk = sliceBalanced(text, m.index, '{', '}')
+      if (!chunk) continue
+      try { collect(JSON.parse(chunk)) } catch { bad++ }
+    }
+  }
+
   if (bad) console.log(`· 跳过 ${bad} 个无法解析的片段`)
-  return [...bySlug.values()]
+  return [...byKey.values()]
 }
 
 /* ---------------- 4. 清洗成前端需要的形状 ---------------- */
@@ -207,15 +227,34 @@ function toRows(models) {
   return models
     .filter((o) => typeof o.intelligenceIndex === 'number' && typeof o.intelligenceIndexCostPerTask === 'number')
     .map((o) => ({
-      slug: o.slug,
+      // id 是每行唯一的 UUID；release.slug 只用于拼 AA 详情链接（同 release 多档共用）
+      slug: o.slug ?? o.id,
+      linkSlug: o.slug ?? o.release?.slug ?? o.id,
       name: o.name,
       creator: o.modelCreatorName ?? 'Unknown',
       color: o.modelCreatorColor || '#8b93a7',
       intelligence: +o.intelligenceIndex.toFixed(2),
       costPerTask: o.intelligenceIndexCostPerTask,
-      outputTps: o.medianOutputTokensPerSecond ? +o.medianOutputTokensPerSecond.toFixed(1) : null,
-      ttft: o.medianTimeToFirstTokenSeconds ? +o.medianTimeToFirstTokenSeconds.toFixed(2) : null,
-      e2e: o.medianEndToEndResponseTimeSeconds ? +o.medianEndToEndResponseTimeSeconds.toFixed(2) : null,
+      // 新版字段改名：medianOutputTokensPerSecond -> outputSpeed，
+      // timeToFirstToken 单位从秒变成毫秒，e2e 由 timePerTask / 速度推算
+      outputTps:
+        o.outputSpeed != null
+          ? +o.outputSpeed.toFixed(1)
+          : o.medianOutputTokensPerSecond != null
+            ? +o.medianOutputTokensPerSecond.toFixed(1)
+            : null,
+      ttft:
+        o.timeToFirstToken != null
+          ? +(o.timeToFirstToken / 1000).toFixed(2)
+          : o.medianTimeToFirstTokenSeconds != null
+            ? +o.medianTimeToFirstTokenSeconds.toFixed(2)
+            : null,
+      e2e:
+        o.intelligenceIndexTimePerTask != null
+          ? +(o.intelligenceIndexTimePerTask / 1000).toFixed(2)
+          : o.medianEndToEndResponseTimeSeconds != null
+            ? +o.medianEndToEndResponseTimeSeconds.toFixed(2)
+            : null,
       context: o.contextWindowTokens ?? null,
       pIn: o.price1mInputTokens ?? null,
       pOut: o.price1mOutputTokens ?? null,
@@ -228,7 +267,7 @@ function toRows(models) {
 /* ---------------- 5. 主流程 ---------------- */
 const { html, fetchedAt, fromCache } = await fetchHtml()
 const flight = extractFlight(html)
-const all = extractModels(flight)
+const all = extractModels(html.includes('initialModels') ? html : flight)
 const rows = toRows(all)
 
 if (rows.length < 10) {

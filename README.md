@@ -48,7 +48,7 @@ npm run build      # 只构建，输出到 dist/（base 为 /LLM_Charts/）
 | 反选厂商 | 一键把「显示中的厂商 ↔ 已隐藏的厂商」互换，适合只看少数几家 |
 | 搜索 | 按模型名或厂商名过滤 |
 | 帕累托前沿 | 虚线连接"不存在更便宜且更聪明替代品"的模型，即最优取舍边界 |
-| 超宽屏自适应 | 页面不设 `max-width`，2560px 及以上直接铺满（图表约 2480px 宽），同屏容纳更多信息 |
+| 宽度基准 | 以 1080p（1920px）为设计基准，`.page { max-width: 1920px; margin: 0 auto }`；更宽的屏幕居中留白，避免图表被拉得过长 |
 | 手机适配 | ≤900px 详情浮层缩到图表左上；**厂商 chips 与桌面一致允许多行换行**（不再横向滚动）；≤640px 页面几乎零外边距、图表占满宽度并吃掉剩余视口高度（~74dvh）、grid 留白压到最小；底部比例尺滑条便于手指精确控制，触屏下 tooltip 改为点按触发并限制在图内 |
 | 导出 PNG | 3x 像素比导出高清静态图 |
 
@@ -130,18 +130,18 @@ npm run update -- --offline    # 完全离线，只用归档快照
 
 ### 抓取原理
 
-Next.js App Router 会把 SSR 数据以如下形式内联在 HTML 里：
-
-```html
-<script>self.__next_f.push([1,"{\"slug\":\"gemini-4-carbon\",...}"])</script>
-```
+Next.js App Router 把 SSR 数据以 `self.__next_f.push([1,"<转义 JSON>"])` 内联在 HTML 里。
 
 脚本 `scripts/fetch-models.mjs` 的处理链路：
 
 1. **取页面** — `fetch()` 带浏览器 UA 请求榜单页（或 `--html` 用本地 HTML 重放、 `--offline` 用归档快照）。
-2. **解 flight** — 正则 `self.__next_f.push([1,"…"])` 抽出所有片段，逐个 `JSON.parse` 后拼接成完整 flight 文本。
-3. **抠对象** — 模型对象固定以 `{"slug":…,"name":…,"shortName"` 开头，从这里做**括号平衡扫描**截取完整 JSON 并解析；按 `slug` 去重。
-4. **筛选清洗** — 只保留同时具备 `intelligenceIndex` 与 `intelligenceIndexCostPerTask` 的模型，映射成前端字段，按智能指数降序。
+2. **还原转义** — 新版 push 片段里的 JSON 带一层反斜杠转义，先还原成可 `JSON.parse` 的文本。
+3. **抠数组** — 数据整包放在 `"initialModels":[{…}]`，做**括号平衡扫描**截取整个数组；旧版散落的 `{"slug":…,"name":…,"shortName"` 对象作为兜底。
+4. **字段映射** — 新版模型主键是唯一的 `id`，`slug` 挪到 `release.slug`（同一 release 下多个思考档位共用）。因此前端 `slug` 用 `id` 保证每行唯一，另存 `linkSlug` 用于拼 AA 详情链接；速度/延迟字段改名为 `outputSpeed` / `timeToFirstToken`（毫秒） / `intelligenceIndexTimePerTask`，脚本兼容新旧两套字段名。
+5. **筛选清洗** — 只保留同时具备 `intelligenceIndex` 与 `intelligenceIndexCostPerTask` 的模型，按智能指数降序。
+
+> 页面结构变化时的排查顺序：先看 `"initialModels"` 是否还在、再看字段是否改名、最后确认两项指标字段名。脚本在有效模型少于 10 条时会中止写入，防止静默写坏数据。
+
 
 ### 更新数据
 

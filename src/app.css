@@ -1,9 +1,10 @@
 .page {
   position: relative;
   z-index: 1;
-  /* 不设 max-width：超宽屏直接铺满，让图表同屏容纳更多信息 */
+  /* 以 1080p（1920px）为设计基准：更宽的屏幕居中留白，避免图表拉得过长 */
   width: 100%;
-  margin: 0;
+  max-width: 1920px;
+  margin: 0 auto;
   padding: 24px clamp(16px, 2vw, 40px) 20px;
   display: flex;
   flex-direction: column;

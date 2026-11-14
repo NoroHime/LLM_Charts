@@ -1,5 +1,8 @@
 export interface ModelPoint {
+  /** Unique key for this exact tier variant (upstream id). */
   slug: string
+  /** AA detail page slug; several tiers can share one release page. */
+  linkSlug: string
   name: string
   creator: string
   color: string
