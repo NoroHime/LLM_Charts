@@ -4,6 +4,8 @@ import raw from './data/models.json'
 import meta from './data/meta.json'
 import type { ModelPoint, ScaleMode } from './types'
 import { buildFamilyLinks, dimColor } from './families'
+import { VIEWS, DEFAULT_VIEW, getView, viewExtent } from './metrics'
+import type { ViewId, ViewDef } from './metrics'
 import './app.css'
 
 const FETCHED_AT = new Date(meta.fetchedAt).toLocaleString('zh-CN', {
@@ -16,10 +18,16 @@ const FETCHED_AT = new Date(meta.fetchedAt).toLocaleString('zh-CN', {
 
 /** 免费模型成本为 0，对数轴无法表示，统一抬到下限 */
 const COST_FLOOR = 0.005
-const X_MIN_LOG = COST_FLOOR
 const Y_MAX = 70
 
-type Row = ModelPoint & { displayCost: number; onFrontier: boolean; ratio: number; depth: number }
+type Row = ModelPoint & {
+  /** Plotted x in the current view (cost / seconds / 1÷tps). */
+  x: number
+  /** Original metric value for tooltips. */
+  rawX: number | null
+  onFrontier: boolean
+  depth: number
+}
 
 /**
  * 上游把 OpenAI 的强调色给成 #1f1f1f（近黑），在暗色背景上散点/连线/chip 全部看不见。
@@ -33,25 +41,21 @@ const ROWS: Row[] = (raw as ModelPoint[])
   .map((m) => ({
     ...m,
     color: CREATOR_COLOR_OVERRIDE[m.creator] ?? m.color,
-    displayCost: Math.max(m.costPerTask, COST_FLOOR),
+    x: Math.max(m.costPerTask, COST_FLOOR),
+    rawX: m.costPerTask,
     onFrontier: false,
     depth: 0,
-    ratio: m.intelligence / Math.max(m.costPerTask, COST_FLOOR),
   }))
   .sort((a, b) => b.intelligence - a.intelligence)
 
-/** 坐标轴默认范围与缩放边界（滚轮缩放 / 复位用）
- *  按实际数据最大值向上取整，别让 x 轴右半边空着（旧值固定 100，数据只到 ~26.5） */
-const X_MAX = Math.max(1, Math.ceil((Math.max(...ROWS.map((r) => r.displayCost)) * 1.08) / 5) * 5)
-
 /**
- * 帕累托深度（非支配排序分层）：
- *   深度 0 = 帕累托前沿，不存在「更便宜且更聪明」的替代；
- *   把前沿剥掉后剩下的点再求一次前沿 = 深度 1，以此类推。
- * 越是深度大的点，越是被别的模型同时压住（更贵又更笨），标签优先级越低。
+ * 帕累托深度（非支配排序分层），按当前视图的 x 轴计算：
+ *   深度 0 = 前沿，不存在「x 更小（更好）且更聪明」的替代；
+ *   剥掉前沿后剩下的点再求一次前沿 = 深度 1，以此类推。
+ * 三个视图都保持「左上 = 更好」，所以同一套算法可直接复用。
  */
-;(() => {
-  let pool = [...ROWS]
+function assignPareto(rows: Row[]) {
+  let pool = [...rows]
   let depth = 0
   while (pool.length) {
     const next: Row[] = []
@@ -59,9 +63,9 @@ const X_MAX = Math.max(1, Math.ceil((Math.max(...ROWS.map((r) => r.displayCost))
       const dominated = pool.some(
         (b) =>
           b !== a &&
-          b.displayCost <= a.displayCost &&
+          b.x <= a.x &&
           b.intelligence >= a.intelligence &&
-          (b.displayCost < a.displayCost || b.intelligence > a.intelligence),
+          (b.x < a.x || b.intelligence > a.intelligence),
       )
       if (dominated) {
         next.push(a)
@@ -73,7 +77,11 @@ const X_MAX = Math.max(1, Math.ceil((Math.max(...ROWS.map((r) => r.displayCost))
     pool = next
     depth++
   }
-})()
+  return Math.max(0, depth - 1)
+}
+
+// 初始视图（性价比）先算一次，供模块级常量使用
+const INITIAL_MAX_DEPTH = assignPareto(ROWS)
 
 const CREATORS = [...new Set(ROWS.map((r) => r.creator))].sort((a, b) => {
   const ca = ROWS.filter((r) => r.creator === a).length
@@ -84,10 +92,6 @@ const CREATORS = [...new Set(ROWS.map((r) => r.creator))].sort((a, b) => {
 const CREATOR_COLOR = new Map(ROWS.map((r) => [r.creator, r.color] as const))
 const CREATOR_COUNT = new Map<string, number>()
 for (const r of ROWS) CREATOR_COUNT.set(r.creator, (CREATOR_COUNT.get(r.creator) ?? 0) + 1)
-
-/** 最大帕累托深度：滑条右端 = 全部标签 */
-const MAX_DEPTH = ROWS.reduce((m, r) => Math.max(m, r.depth), 0)
-const DEPTH_FRONT = ROWS.filter((r) => r.depth === 0).length
 
 /** 标签字号倍率：滑条 0.5×–2.0×，默认 1.0× 正好在中点 */
 const LABEL_SCALE_MIN = 0.5
@@ -134,13 +138,14 @@ function useViewport() {
 
 export default function App() {
   const vp = useViewport()
+  const [viewId, setViewId] = useState<ViewId>(DEFAULT_VIEW)
   const [scale, setScale] = useState<ScaleMode>('log')
   const [hidden, setHidden] = useState<Set<string>>(() => new Set<string>())
   const [query, setQuery] = useState('')
   // 标签按「帕累托深度」分层：0 = 前沿，越往右加入越外围的点。
   // 宽屏默认右端（全部）；窄屏（<900px，手机/平板/半屏窗口）默认只标前沿层，避免一上来糊成一片。
   const [labelDepth, setLabelDepth] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : MAX_DEPTH,
+    typeof window !== 'undefined' && window.innerWidth < 900 ? 0 : INITIAL_MAX_DEPTH,
   )
   const [labelScale, setLabelScale] = useState(1)
   const [zoomLevel, setZoomLevel] = useState(ZOOM_MIN)
@@ -156,20 +161,49 @@ export default function App() {
     [],
   )
 
-  const visible = useMemo(() => {
+  /**
+   * 按当前视图重算每个点的 x、性价比、帕累托深度与前沿。
+   * 缺该维度数据的点（如某些模型没有耗时）在本视图里直接不绘制。
+   */
+  const viewData = useMemo(() => {
+    const view = getView(viewId)
     const q = query.trim().toLowerCase()
-    return ROWS.filter(
-      (r) =>
+    const filtered = ROWS.filter((r) => {
+      const xv = view.x(r)
+      return (
+        xv != null &&
         !hidden.has(r.creator) &&
-        (!q || r.name.toLowerCase().includes(q) || r.creator.toLowerCase().includes(q)),
-    )
-  }, [hidden, query])
+        (!q || r.name.toLowerCase().includes(q) || r.creator.toLowerCase().includes(q))
+      )
+    })
+    const rows: Row[] = filtered.map((r) => ({
+      ...r,
+      x: view.x(r) as number,
+      rawX: view.raw(r),
+      onFrontier: false,
+      depth: 0,
+    }))
+    const maxDepth = assignPareto(rows)
+    const xs = rows.map((r) => r.x)
+    return {
+      view,
+      rows,
+      maxDepth,
+      frontCount: rows.filter((r) => r.depth === 0).length,
+      extent: viewExtent(xs),
+    }
+  }, [viewId, hidden, query])
+
+  const { view, rows: visible, maxDepth: MAX_DEPTH, frontCount: DEPTH_FRONT, extent } = viewData
 
   const stats = useMemo(() => {
     const best = visible.reduce<Row | null>((a, b) => (!a || b.intelligence > a.intelligence ? b : a), null)
-    const cheapest = visible.reduce<Row | null>((a, b) => (!a || b.displayCost < a.displayCost ? b : a), null)
-    const value = visible.reduce<Row | null>((a, b) => (!a || b.ratio > a.ratio ? b : a), null)
-    return { n: visible.length, best, cheapest, value }
+    const cheapest = visible.reduce<Row | null>((a, b) => (!a || b.x < a.x ? b : a), null)
+    // 前沿上智能最高的点：三视图都自洽，不会因为量纲变化出现天文数字
+    const frontBest = visible
+      .filter((r) => r.onFrontier)
+      .reduce<Row | null>((a, b) => (!a || b.intelligence > a.intelligence ? b : a), null)
+    return { n: visible.length, best, cheapest, frontBest }
   }, [visible])
 
   const labeledCount = useMemo(
@@ -199,11 +233,11 @@ export default function App() {
     const series: unknown[] = []
 
     if (showFrontier) {
-      const frontier = visible.filter((r) => r.onFrontier).sort((a, b) => a.displayCost - b.displayCost)
+      const frontier = visible.filter((r) => r.onFrontier).sort((a, b) => a.x - b.x)
       series.push({
         name: '帕累托前沿',
         type: 'line',
-        data: frontier.map((r) => [r.displayCost, r.intelligence]),
+        data: frontier.map((r) => [r.x, r.intelligence]),
         showSymbol: false,
         lineStyle: { color: 'rgba(125,211,252,0.35)', width: 1.5, type: 'dashed' },
         silent: true,
@@ -213,7 +247,7 @@ export default function App() {
 
     // 同一模型的不同思考档位：细实线，用公司强调色的暗淡版本，明显区别于帕累托虚线
     if (showFamilies) {
-      for (const fam of buildFamilyLinks(visible)) {
+      for (const fam of buildFamilyLinks(visible, (r) => r.x)) {
         series.push({
           name: fam.key,
           type: 'line',
@@ -241,7 +275,7 @@ export default function App() {
       name: '模型',
       type: 'scatter',
       data: visible.map((r) => ({
-        value: [r.displayCost, r.intelligence],
+        value: [r.x, r.intelligence],
         row: r,
         itemStyle: { color: r.color },
       })),
@@ -330,8 +364,8 @@ export default function App() {
               r.onFrontier ? tag('帕累托前沿', '#7dd3fc') : ''
             }</div>
             ${line('AA 智能指数', r.intelligence.toFixed(1))}
+            ${line(view.title + ' · X', r.rawX != null ? view.formatX(r.rawX) : '—')}
             ${line('每任务成本', r.costPerTask === 0 ? '$0 (免费)' : fmtUsd(r.costPerTask))}
-            ${line('性价比', r.ratio.toFixed(1) + ' 指数/$')}
             <div class="tt-sep"></div>
             ${line('输出速度', r.outputTps ? r.outputTps.toFixed(0) + ' tok/s' : '—')}
             ${line('首字延迟', r.ttft != null ? r.ttft.toFixed(2) + ' s' : '—')}
@@ -343,14 +377,17 @@ export default function App() {
         },
       },
       xAxis: {
-        type: scale === 'log' ? 'log' : 'value',
-        min: scale === 'log' ? X_MIN_LOG : 0,
-        max: X_MAX,
+        // 线性 value 轴，数据点是 log10(真实指标)：比 ECharts 内置 log 轴可靠，
+        // 任意窄区间都能稳定出刻度。整数刻度标主单位，半格不标文字。
+        type: 'value',
+        min: extent.min,
+        max: extent.max,
+        interval: scale === 'log' ? 0.5 : 1,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
         axisLabel: {
           color: '#8b93a7',
           fontSize: mobile ? 9.5 : 11,
-          formatter: (v: number) => (v >= 1 ? '$' + v : v >= 0.01 ? '$' + v.toFixed(2) : '$' + v),
+          formatter: (v: number) => view.formatTick(v),
         },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
@@ -398,7 +435,7 @@ export default function App() {
       ],
       series: series as never,
     }
-  }, [visible, scale, labelDepth, labelScale, zoomLevel, showFrontier, showFamilies, pinned, vp.w, touch])
+  }, [visible, view, extent, scale, labelDepth, labelScale, zoomLevel, showFrontier, showFamilies, pinned, vp.w, touch])
 
   const toggleCreator = (c: string) => {
     const next = new Set(hidden)
@@ -426,17 +463,36 @@ export default function App() {
             <a href="https://artificialanalysis.ai/leaderboards/models" target="_blank" rel="noreferrer">
               Artificial Analysis · LLM Leaderboard
             </a>
-            。共 {ROWS.length} 个同时具备两项指标的模型 —— 左上角 = 又聪明又便宜。
+            。共 {visible.length} 个模型在当前维度可绘制 —— 左上角 = 又聪明又{view.id === 'value' ? '便宜' : view.id === 'speed' ? '快' : '高吞吐'}。
             <b>悬停</b>查看完整参数，<b>单击</b>固定详情。
           </p>
         </div>
         <div className="hero-stats">
           <Stat label="入选模型" value={String(stats.n)} />
           <Stat label="最强智能" value={stats.best ? stats.best.intelligence.toFixed(1) : '—'} hint={stats.best?.name} />
-          <Stat label="最低成本" value={stats.cheapest ? fmtUsd(stats.cheapest.displayCost) : '—'} hint={stats.cheapest?.name} />
-          <Stat label="最佳性价比" value={stats.value ? stats.value.ratio.toFixed(0) : '—'} unit=" 指数/$" hint={stats.value?.name} />
+          <Stat label={view.id === 'throughput' ? '最快' : view.id === 'speed' ? '最省时' : '最低成本'} value={stats.cheapest && stats.cheapest.rawX != null ? view.formatX(stats.cheapest.rawX) : '—'} hint={stats.cheapest?.name} />
+          <Stat label="前沿最强" value={stats.frontBest ? stats.frontBest.intelligence.toFixed(1) : '—'} unit=" 指数" hint={stats.frontBest?.name} />
         </div>
       </header>
+
+      {/* 大号分段 Tab：三个视图一眼可辨，切换后整个坐标系/前沿/标签深度都会重算 */}
+      <div className="viewtabs" role="tablist" aria-label="图表维度">
+        {VIEWS.map((v, i) => (
+          <button
+            key={v.id}
+            role="tab"
+            aria-selected={viewId === v.id}
+            className={'viewtab' + (viewId === v.id ? ' on' : '')}
+            onClick={() => { setViewId(v.id); setZoomLevel(ZOOM_MIN); setLabelDepth(vp.w < 900 ? 0 : INITIAL_MAX_DEPTH) }}
+          >
+            <span className="vt-icon" aria-hidden="true">{['＄', '⚡', '⇢'][i]}</span>
+            <span className="vt-text">
+              <b>{v.title}</b>
+              <small>{v.hint}</small>
+            </span>
+          </button>
+        ))}
+      </div>
 
       <div className="toolbar">
         <div className="group">
@@ -593,11 +649,11 @@ export default function App() {
           onZoom={setZoomLevel}
         />
         <aside className={pinned ? 'panel on' : 'panel'}>
-          {pinned ? <Detail row={pinned} onClose={() => setPinned(null)} /> : <Empty />}
+          {pinned ? <Detail row={pinned} view={view} onClose={() => setPinned(null)} /> : <Empty />}
         </aside>
         <div className="axis-caption">
           <span className="ac-y">AA 智能指数 ↑</span>
-          <span className="ac-x">每任务成本 (USD) →</span>
+          <span className="ac-x">{view.xLabel}</span>
         </div>
       </div>
 
@@ -790,12 +846,12 @@ function Chart({
   return <div className="chart" ref={box} />
 }
 
-function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
+function Detail({ row, view, onClose }: { row: Row; view: ViewDef; onClose: () => void }) {
   const items: [string, string][] = [
     ['AA 智能指数', row.intelligence.toFixed(2)],
     ['帕累托深度', row.depth === 0 ? '0（前沿）' : String(row.depth)],
     ['每任务成本', row.costPerTask === 0 ? '$0 (免费)' : fmtUsd(row.costPerTask)],
-    ['性价比', row.ratio.toFixed(1) + ' 指数/$'],
+    [view.title + ' · X', row.rawX != null ? view.formatX(row.rawX) : '—'],
     ['输出速度', row.outputTps ? row.outputTps.toFixed(1) + ' tok/s' : '—'],
     ['首字延迟', row.ttft != null ? row.ttft.toFixed(2) + ' s' : '—'],
     ['端到端响应', row.e2e != null ? row.e2e.toFixed(2) + ' s' : '—'],

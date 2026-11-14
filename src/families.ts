@@ -26,7 +26,7 @@ export interface FamilyLink {
   points: FamilyPoint[]
 }
 
-type PlotRow = ModelPoint & { displayCost: number }
+type PlotRow = ModelPoint & { x: number }
 
 /**
  * Whitelist the effort/reasoning tails. "(0902)" (a date), "(Reasoning)"
@@ -35,8 +35,9 @@ type PlotRow = ModelPoint & { displayCost: number }
 const TIER =
   /^(.*?)\s*\((?:Max|Xhigh|High|Medium|Low|Non-reasoning)(?:,\s*Default Fallback)?\)\s*$/i
 
-/** Build link groups; only groups with >= 2 visible members produce a line. */
-export function buildFamilyLinks(rows: PlotRow[]): FamilyLink[] {
+/** Build link groups; only groups with >= 2 visible members produce a line.
+ *  getX lets the caller supply the current view's x value (cost / time / 1÷tps). */
+export function buildFamilyLinks(rows: PlotRow[], getX: (r: PlotRow) => number): FamilyLink[] {
   const groups = new Map<string, PlotRow[]>()
   for (const r of rows) {
     const base = r.name.match(TIER)?.[1]?.trim()
@@ -57,10 +58,10 @@ export function buildFamilyLinks(rows: PlotRow[]): FamilyLink[] {
         .sort(
           (a, b) =>
             a.intelligence - b.intelligence ||
-            a.displayCost - b.displayCost ||
+            getX(a) - getX(b) ||
             a.slug.localeCompare(b.slug),
         )
-        .map((r) => ({ x: r.displayCost, y: r.intelligence, name: r.name, slug: r.slug })),
+        .map((r) => ({ x: getX(r), y: r.intelligence, name: r.name, slug: r.slug })),
     }))
 }
 
