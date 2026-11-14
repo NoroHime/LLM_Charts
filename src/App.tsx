@@ -21,9 +21,18 @@ const Y_MAX = 70
 
 type Row = ModelPoint & { displayCost: number; onFrontier: boolean; ratio: number; depth: number }
 
+/**
+ * 上游把 OpenAI 的强调色给成 #1f1f1f（近黑），在暗色背景上散点/连线/chip 全部看不见。
+ * models.json 由 CI 自动抓取生成，不能手改数据，所以在前端统一覆盖成白色。
+ */
+const CREATOR_COLOR_OVERRIDE: Record<string, string> = {
+  OpenAI: '#ffffff',
+}
+
 const ROWS: Row[] = (raw as ModelPoint[])
   .map((m) => ({
     ...m,
+    color: CREATOR_COLOR_OVERRIDE[m.creator] ?? m.color,
     displayCost: Math.max(m.costPerTask, COST_FLOOR),
     onFrontier: false,
     depth: 0,
@@ -260,7 +269,9 @@ export default function App() {
         formatter: (p: unknown) => {
           const r = (p as { data?: { row?: Row } }).data?.row
           if (!r || !labeled.has(r.slug)) return ''
-          return r.name.replace(/\s*\((?:[^)]*fallback[^)]*)\)/i, '').trim()
+          // Keep the thinking tier inside the parentheses (Max / Xhigh / High ...).
+          // Only trim Claude's redundant ", Default Fallback" wording.
+          return r.name.replace(/,\s*Default Fallback(?=\))/i, '').trim()
         },
       },
       // 关键：hideOverlap:false 让标签全部出现；moveOverlap 让重叠的标签上下错位而不是叠死；
