@@ -4,7 +4,7 @@ import raw from './data/models.json'
 import meta from './data/meta.json'
 import type { ModelPoint, ScaleMode } from './types'
 import { buildFamilyLinks, dimColor } from './families'
-import { VIEWS, DEFAULT_VIEW, getView, viewExtent } from './metrics'
+import { VIEWS, DEFAULT_VIEW, getView, viewExtent, projectX } from './metrics'
 import type { ViewId, ViewDef } from './metrics'
 import './app.css'
 
@@ -176,13 +176,16 @@ export default function App() {
         (!q || r.name.toLowerCase().includes(q) || r.creator.toLowerCase().includes(q))
       )
     })
-    const rows: Row[] = filtered.map((r) => ({
-      ...r,
-      x: view.x(r) as number,
-      rawX: view.raw(r),
-      onFrontier: false,
-      depth: 0,
-    }))
+    const rows: Row[] = filtered.map((r) => {
+      const real = view.x(r) as number
+      return {
+        ...r,
+        x: projectX(real, scale),
+        rawX: real,
+        onFrontier: false,
+        depth: 0,
+      }
+    })
     const maxDepth = assignPareto(rows)
     const xs = rows.map((r) => r.x)
     return {
@@ -190,9 +193,9 @@ export default function App() {
       rows,
       maxDepth,
       frontCount: rows.filter((r) => r.depth === 0).length,
-      extent: viewExtent(xs),
+      extent: viewExtent(xs, scale),
     }
-  }, [viewId, hidden, query])
+  }, [viewId, hidden, query, scale])
 
   const { view, rows: visible, maxDepth: MAX_DEPTH, frontCount: DEPTH_FRONT, extent } = viewData
 
@@ -377,17 +380,18 @@ export default function App() {
         },
       },
       xAxis: {
-        // 线性 value 轴，数据点是 log10(真实指标)：比 ECharts 内置 log 轴可靠，
-        // 任意窄区间都能稳定出刻度。整数刻度标主单位，半格不标文字。
+        // 对数模式：数据点 = log10(真实指标) 画在线性轴上，半 decade 一个刻度；
+        // 线性模式：数据点 = 真实指标，等距刻度。两者点的分布真实不同。
         type: 'value',
         min: extent.min,
         max: extent.max,
-        interval: scale === 'log' ? 0.5 : 1,
+        interval: extent.interval,
         axisLine: { lineStyle: { color: 'rgba(255,255,255,0.18)' } },
         axisLabel: {
           color: '#8b93a7',
           fontSize: mobile ? 9.5 : 11,
-          formatter: (v: number) => view.formatTick(v),
+          formatter: (v: number) =>
+            scale === 'log' ? view.formatTickLog(v) : view.formatTickLinear(v),
         },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.055)' } },
       },
