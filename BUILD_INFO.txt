@@ -1,0 +1,5 @@
+commit: 60b324ff8e06338c4d72c9125fee7bddbbf2fc21
+ref: main
+event: schedule
+built_at: 2026-11-28T08:08:19Z
+run: https://github.com/NoroHime/LLM_Charts/actions/runs/46124381753
